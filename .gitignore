@@ -24,3 +24,5 @@ output/
 *.njsproj
 *.sln
 *.sw?
+.psc-ide-port
+.purs-repl
