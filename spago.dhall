@@ -33,11 +33,14 @@ to generate this file without the comments in this block.
   , "react-basic"
   , "react-basic-dom"
   , "react-basic-hooks"
+  , "refs"
+  , "routing-duplex"
   , "tuples"
   , "unsafe-coerce"
   , "web-dom"
   , "web-file"
   , "web-html"
+  , "web-router"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

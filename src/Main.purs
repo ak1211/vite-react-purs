@@ -1,7 +1,8 @@
 module Main where
 
 import Prelude
-import App.Pages.Home (mkHome)
+import App as App
+import App.Router as AppRouter
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Exception (throw)
@@ -18,6 +19,7 @@ main = do
   case maybeRoot of
     Nothing -> throw "Root element not found."
     Just r -> do
-      home <- mkHome
+      router <- AppRouter.mkRouter
+      app <- App.mkApp
       root <- createRoot r
-      renderRoot root (home unit)
+      renderRoot root (router [ app unit ])
