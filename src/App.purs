@@ -6,6 +6,7 @@ import App.Pages.Charts as Charts
 import App.Pages.Home as Home
 import App.Router as AppRouter
 import App.Routes (Page(..), Route(..))
+import App.Shadcn.Button as ShadcnButton
 import Effect (Effect)
 import React.Basic.DOM as R
 import React.Basic.Events (handler_)
@@ -24,16 +25,19 @@ mkApp = do
           [ R.div_
               [ R.text "Menu: "
               , R.ul_
-                  [ R.button
+                  [ ShadcnButton.button
                       { onClick: handler_ $ router.navigate Home
+                      , className: "m-1"
                       , children: [ R.text "Go to Home page" ]
                       }
-                  , R.button
+                  , ShadcnButton.button
                       { onClick: handler_ $ router.navigate About
+                      , className: "m-1"
                       , children: [ R.text "Go to About page" ]
                       }
-                  , R.button
+                  , ShadcnButton.button
                       { onClick: handler_ $ router.navigate Charts
+                      , className: "m-1"
                       , children: [ R.text "Go to Charts page" ]
                       }
                   ]

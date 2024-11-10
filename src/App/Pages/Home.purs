@@ -12,7 +12,7 @@ type HomeProps
 
 mkHome :: Component HomeProps
 mkHome = do
-  component "Home" \_props -> React.do
+  component "Home" \_props -> do
     pure
       $ DOM.div
           { children:
