@@ -3,17 +3,19 @@ module App.Shadcn.Button
   , button
   ) where
 
-import React.Basic.Events (EventHandler)
+import Prim.Row (class Union)
+import React.Basic.DOM (Props_button)
 import React.Basic.Hooks (JSX, ReactComponent)
 import React.Basic.Hooks as React
 
 type ButtonProps
-  = { onClick :: EventHandler
-    , children :: Array JSX
-    , className :: String
-    }
+  = ( variant :: String
+    , size :: String
+    , asChild :: Boolean
+    | Props_button
+    )
 
 foreign import buttonImpl :: forall a. ReactComponent { | a }
 
-button :: ButtonProps -> JSX
+button :: forall attrs attrs_. Union attrs attrs_ ButtonProps => Record attrs -> JSX
 button props = React.element buttonImpl props

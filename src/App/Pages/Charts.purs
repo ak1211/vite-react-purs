@@ -5,9 +5,10 @@ module App.Pages.Charts
 
 import Prelude
 import App.DataAcquisition.Types (EnvSensorId, PressureChartSeries, RelativeHumidityChartSeries, TemperatureChartSeries)
-import App.TemperatureChart as TemperatureChart
 import App.PressureChart as PressureChart
 import App.RelativeHumidityChart as RelativeHumidityChart
+import App.Shadcn.Button as ShadcnButton
+import App.TemperatureChart as TemperatureChart
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError, decodeJson, printJsonDecodeError)
 import Data.Either (Either, either)
@@ -84,68 +85,78 @@ mkCharts = do
           { children:
               [ DOM.h1_ [ DOM.text "Charts" ]
               , DOM.p_ [ DOM.text "Try clicking the button!" ]
-              , DOM.button
+              , ShadcnButton.button
                   { onClick:
                       capture_ do
                         setState _ { counter = state.counter + 1 }
+                  , className: "m-1"
+                  , variant: "destructive"
                   , children:
                       [ DOM.text "Clicks: "
                       , DOM.text (show state.counter)
                       ]
                   }
-              , DOM.br {}
-              , DOM.button
+              , ShadcnButton.button
                   { onClick: capture_ versionButtonOnClickHandler
+                  , className: "m-1"
+                  , variant: "secondary"
                   , children:
                       [ DOM.text "SQLite version"
                       ]
                   }
-              , DOM.br {}
-              , DOM.button
+              , ShadcnButton.button
                   { onClick:
                       capture_ $ sensorIdButtonOnClickHandler stateHook "temperature"
+                  , className: "m-1"
+                  , variant: "secondary"
                   , children:
                       [ DOM.text "temperatureテーブルに入ってるsensor_id" ]
                   }
-              , DOM.br {}
-              , DOM.button
+              , ShadcnButton.button
                   { onClick:
                       capture_ $ getTemperatureButtonOnClickHandler stateHook
+                  , className: "m-1"
+                  , variant: ""
                   , children:
                       [ DOM.text "temperature" ]
                   }
-              , DOM.br {}
-              , DOM.button
+              , ShadcnButton.button
                   { onClick:
                       capture_ $ sensorIdButtonOnClickHandler stateHook "relative_humidity"
+                  , className: "m-1"
+                  , variant: "secondary"
                   , children:
                       [ DOM.text "relative_humidityテーブルに入ってるsensor_id" ]
                   }
-              , DOM.br {}
-              , DOM.button
+              , ShadcnButton.button
                   { onClick:
                       capture_ $ getRelativeHumidityButtonOnClickHandler stateHook
+                  , className: "m-1"
+                  , variant: ""
                   , children:
                       [ DOM.text "relative_humidity" ]
                   }
-              , DOM.br {}
-              , DOM.button
+              , ShadcnButton.button
                   { onClick:
                       capture_ $ sensorIdButtonOnClickHandler stateHook "pressure"
+                  , className: "m-1"
+                  , variant: "secondary"
                   , children:
                       [ DOM.text "pressureテーブルに入ってるsensor_id" ]
                   }
-              , DOM.br {}
-              , DOM.button
+              , ShadcnButton.button
                   { onClick:
                       capture_ $ getPressureButtonOnClickHandler stateHook
+                  , className: "m-1"
+                  , variant: ""
                   , children:
                       [ DOM.text "pressure" ]
                   }
-              , DOM.br {}
-              , DOM.button
+              , ShadcnButton.button
                   { onClick:
                       capture_ $ openFileHandler stateHook opfsDatabaseFileToUse
+                  , className: "m-1"
+                  , variant: ""
                   , children:
                       [ DOM.text "Open database file on OPFS"
                       ]
