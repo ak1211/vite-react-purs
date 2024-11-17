@@ -1,8 +1,11 @@
-module Main where
+module Main (main) where
 
 import Prelude
 import App as App
+import App.Config (devConfig)
 import App.Router as AppRouter
+import App.Shadcn.Shadcn as Shadcn
+import Control.Monad.Reader.Trans (runReaderT)
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Exception (throw)
@@ -20,6 +23,7 @@ main = do
     Nothing -> throw "Root element not found."
     Just r -> do
       router <- AppRouter.mkRouter
-      app <- App.mkApp
+      app <- runReaderT App.mkApp devConfig
       root <- createRoot r
-      renderRoot root (router [ app unit ])
+      -- Shadcn/ui ToastのToasterコンポーネントをid=root要素の最後に配置する
+      renderRoot root (router [ app unit, Shadcn.toaster ])

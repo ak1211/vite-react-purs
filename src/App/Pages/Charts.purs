@@ -4,46 +4,42 @@ module App.Pages.Charts
   ) where
 
 import Prelude
+import App.Config (Config)
 import App.DataAcquisition.Types (EnvSensorId, PressureChartSeries, RelativeHumidityChartSeries, TemperatureChartSeries)
 import App.PressureChart as PressureChart
 import App.RelativeHumidityChart as RelativeHumidityChart
-import App.Shadcn.Button as ShadcnButton
+import App.Shadcn.Shadcn as Shadcn
+import App.SqliteDatabaseState (SqliteDatabaseState)
 import App.TemperatureChart as TemperatureChart
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError, decodeJson, printJsonDecodeError)
+import Data.Bifunctor (lmap)
 import Data.Either (Either, either)
 import Data.Int (toNumber)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (maybe)
 import Data.Newtype (unwrap)
 import Data.Traversable (traverse, traverse_)
-import Data.Tuple (uncurry)
-import Data.Tuple.Nested (type (/\), (/\), uncurry3, tuple3)
+import Data.Tuple.Nested (type (/\), tuple3, uncurry3, (/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff as Aff
-import Effect.Class.Console (log, logShow, error, errorShow)
+import Effect.Class.Console as Console
 import Effect.Exception (Error)
 import JS.BigInt as BigInt
 import React.Basic.DOM as DOM
-import React.Basic.DOM.Events (capture_, targetFiles)
-import React.Basic.Events (handler)
-import React.Basic.Hooks (Component, component, useEffect, useState)
+import React.Basic.DOM.Events (capture_)
+import React.Basic.Hooks (Component, component, useState)
 import React.Basic.Hooks as React
-import Sqlite3Wasm.Sqlite3Wasm (ConfigGetResult, DbId, OpenResult, OpfsDatabaseFilePath(..), SqliteWorker1Promiser)
 import Sqlite3Wasm.Sqlite3Wasm as Sq3
-import Web.File.File (File)
-import Web.File.File as File
-import Web.File.FileList (FileList)
-import Web.File.FileList as FileList
-import Web.File.FileReader.Aff (readAsArrayBuffer)
+import Unsafe.Coerce (unsafeCoerce)
 
 type ChartsProps
-  = Unit
+  = { config :: Config
+    , sqliteDatabaseState :: SqliteDatabaseState
+    }
 
 type State
   = { counter :: Int
-    , promiser :: Maybe SqliteWorker1Promiser
-    , dbId :: Maybe DbId
     , temperatureSeries :: Array TemperatureChartSeries
     , relativeHumiditySeries :: Array RelativeHumidityChartSeries
     , pressureSeries :: Array PressureChartSeries
@@ -52,8 +48,6 @@ type State
 initialState :: State
 initialState =
   { counter: 0
-  , promiser: Nothing
-  , dbId: Nothing
   , temperatureSeries: []
   , relativeHumiditySeries: []
   , pressureSeries: []
@@ -64,157 +58,116 @@ mkCharts = do
   temperatureChart <- TemperatureChart.mkComponent
   relativeHumidityChart <- RelativeHumidityChart.mkComponent
   pressureChart <- PressureChart.mkComponent
-  component "Charts" \_props -> React.do
-    -- ステートフックを使って、stateとsetStateを得る
+  component "Charts" \(props :: ChartsProps) -> React.do
+    -- useStateフックを使って、stateとsetStateを得る
     stateHook@(state /\ setState) <- useState initialState
-    -- 副作用フック(useEffect)
-    useEffect unit do
-      let
-        fail :: Error -> Effect Unit
-        fail = log <<< Aff.message
-
-        update :: SqliteWorker1Promiser -> Effect Unit
-        update newPromiser = setState _ { promiser = Just newPromiser }
-      -- SQLite3 WASM Worker1 promiser を得る
-      Aff.runAff_ (either fail update) Sq3.createWorker1Promiser
-      -- 副作用フックのクリーンアップ関数を返却する
-      pure $ void $ closeDatabaseHandler stateHook
     --
     pure
       $ DOM.div
           { children:
               [ DOM.h1_ [ DOM.text "Charts" ]
               , DOM.p_ [ DOM.text "Try clicking the button!" ]
-              , ShadcnButton.button
+              , Shadcn.button
                   { onClick:
                       capture_ do
                         setState _ { counter = state.counter + 1 }
                   , className: "m-1"
                   , variant: "destructive"
-                  , children:
-                      [ DOM.text "Clicks: "
-                      , DOM.text (show state.counter)
-                      ]
                   }
-              , ShadcnButton.button
+                  [ DOM.text "Clicks: "
+                  , DOM.text (show state.counter)
+                  ]
+              , Shadcn.button
                   { onClick: capture_ versionButtonOnClickHandler
                   , className: "m-1"
                   , variant: "secondary"
-                  , children:
-                      [ DOM.text "SQLite version"
-                      ]
                   }
-              , ShadcnButton.button
-                  { onClick:
-                      capture_ $ sensorIdButtonOnClickHandler stateHook "temperature"
-                  , className: "m-1"
-                  , variant: "secondary"
-                  , children:
-                      [ DOM.text "temperatureテーブルに入ってるsensor_id" ]
-                  }
-              , ShadcnButton.button
-                  { onClick:
-                      capture_ $ getTemperatureButtonOnClickHandler stateHook
-                  , className: "m-1"
-                  , variant: ""
-                  , children:
-                      [ DOM.text "temperature" ]
-                  }
-              , ShadcnButton.button
-                  { onClick:
-                      capture_ $ sensorIdButtonOnClickHandler stateHook "relative_humidity"
-                  , className: "m-1"
-                  , variant: "secondary"
-                  , children:
-                      [ DOM.text "relative_humidityテーブルに入ってるsensor_id" ]
-                  }
-              , ShadcnButton.button
-                  { onClick:
-                      capture_ $ getRelativeHumidityButtonOnClickHandler stateHook
-                  , className: "m-1"
-                  , variant: ""
-                  , children:
-                      [ DOM.text "relative_humidity" ]
-                  }
-              , ShadcnButton.button
-                  { onClick:
-                      capture_ $ sensorIdButtonOnClickHandler stateHook "pressure"
-                  , className: "m-1"
-                  , variant: "secondary"
-                  , children:
-                      [ DOM.text "pressureテーブルに入ってるsensor_id" ]
-                  }
-              , ShadcnButton.button
-                  { onClick:
-                      capture_ $ getPressureButtonOnClickHandler stateHook
-                  , className: "m-1"
-                  , variant: ""
-                  , children:
-                      [ DOM.text "pressure" ]
-                  }
-              , ShadcnButton.button
-                  { onClick:
-                      capture_ $ openFileHandler stateHook opfsDatabaseFileToUse
-                  , className: "m-1"
-                  , variant: ""
-                  , children:
-                      [ DOM.text "Open database file on OPFS"
-                      ]
-                  }
-              , DOM.p_
-                  [ DOM.text "データーベースファイルをアップロードする"
-                  , DOM.input
-                      { type: "file"
-                      , onChange:
-                          handler targetFiles loadFileHandler
-                      }
+                  [ DOM.text "SQLite version"
                   ]
+              , Shadcn.button
+                  { onClick:
+                      capture_ $ sensorIdButtonOnClickHandler "temperature" props.sqliteDatabaseState
+                  , className: "m-1"
+                  , variant: "secondary"
+                  }
+                  [ DOM.text "temperatureテーブルに入ってるsensor_id" ]
+              , Shadcn.button
+                  { onClick:
+                      capture_ $ getTemperatureButtonOnClickHandler stateHook props.sqliteDatabaseState
+                  , className: "m-1"
+                  , variant: ""
+                  }
+                  [ DOM.text "temperature" ]
+              , Shadcn.button
+                  { onClick:
+                      capture_ $ sensorIdButtonOnClickHandler "relative_humidity" props.sqliteDatabaseState
+                  , className: "m-1"
+                  , variant: "secondary"
+                  }
+                  [ DOM.text "relative_humidityテーブルに入ってるsensor_id" ]
+              , Shadcn.button
+                  { onClick:
+                      capture_ $ getRelativeHumidityButtonOnClickHandler stateHook props.sqliteDatabaseState
+                  , className: "m-1"
+                  , variant: ""
+                  }
+                  [ DOM.text "relative_humidity" ]
+              , Shadcn.button
+                  { onClick:
+                      capture_ $ sensorIdButtonOnClickHandler "pressure" props.sqliteDatabaseState
+                  , className: "m-1"
+                  , variant: "secondary"
+                  }
+                  [ DOM.text "pressureテーブルに入ってるsensor_id" ]
+              , Shadcn.button
+                  { onClick:
+                      capture_ $ getPressureButtonOnClickHandler stateHook props.sqliteDatabaseState
+                  , className: "m-1"
+                  , variant: ""
+                  }
+                  [ DOM.text "pressure" ]
               , temperatureChart state.temperatureSeries
               , relativeHumidityChart state.relativeHumiditySeries
               , pressureChart state.pressureSeries
               ]
           }
 
--- OPFS上のデータベースファイルパス
-opfsDatabaseFileToUse :: OpfsDatabaseFilePath
-opfsDatabaseFileToUse = OpfsDatabaseFilePath "env_database.sqlite3"
-
 versionButtonOnClickHandler :: Effect Unit
 versionButtonOnClickHandler = Aff.runAff_ (either fail success) $ configGet
   where
-  configGet :: Aff ConfigGetResult
+  configGet :: Aff Sq3.ConfigGetResult
   configGet = Sq3.configGet =<< Sq3.createWorker1Promiser
 
   fail :: Error -> Effect Unit
-  fail = error <<< Aff.message
+  fail err = Console.error $ "config-get failed: " <> Aff.message err
 
-  success :: ConfigGetResult -> Effect Unit
-  success r = logShow r
+  success :: Sq3.ConfigGetResult -> Effect Unit
+  success r = Console.logShow r
 
-sensorIdButtonOnClickHandler :: StateHook -> String -> Effect Unit
-sensorIdButtonOnClickHandler (state /\ _) table =
+sensorIdButtonOnClickHandler :: String -> SqliteDatabaseState -> Effect Unit
+sensorIdButtonOnClickHandler dbTable sqlite =
   Aff.runAff_ (either fail success)
     $ maybe (Aff.throwError $ Aff.error "database file not opened") (uncurry3 getSensorIdStoredInTable) do
-        promiser <- state.promiser
-        dbId <- state.dbId
-        pure $ tuple3 promiser dbId table
+        promiser <- sqlite.maybePromiser
+        dbId <- sqlite.maybeDbId
+        pure $ tuple3 promiser dbId dbTable
   where
   fail :: Error -> Effect Unit
-  fail = error <<< Aff.message
+  fail err = Console.error $ "getSensorIdStoredInTable failed: " <> Aff.message err
 
   success :: Array EnvSensorId -> Effect Unit
-  success = traverse_ logShow
+  success = traverse_ Console.logShow
 
-getTemperatureButtonOnClickHandler :: StateHook -> Effect Unit
-getTemperatureButtonOnClickHandler (state /\ setState) =
+getTemperatureButtonOnClickHandler :: StateHook -> SqliteDatabaseState -> Effect Unit
+getTemperatureButtonOnClickHandler (_state /\ setState) sqlite =
   Aff.runAff_ (either fail success)
     $ maybe (Aff.throwError $ Aff.error "database file not opened") (uncurry3 go) do
-        promiser <- state.promiser
-        dbId <- state.dbId
+        promiser <- sqlite.maybePromiser
+        dbId <- sqlite.maybeDbId
         pure $ tuple3 promiser dbId "temperature"
   where
   fail :: Error -> Effect Unit
-  fail = error <<< Aff.message
+  fail err = Console.error $ Aff.message err
 
   -- 取得したデーターでstate変数を上書きする
   success :: Array TemperatureChartSeries -> Effect Unit
@@ -227,21 +180,21 @@ getTemperatureButtonOnClickHandler (state /\ setState) =
     in
       sensorId /\ map record rowTemperature
 
-  go :: SqliteWorker1Promiser -> DbId -> String -> Aff (Array TemperatureChartSeries)
-  go promiser dbId table = do
-    sensors <- getSensorIdStoredInTable promiser dbId table
+  go :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array TemperatureChartSeries)
+  go promiser dbId dbTable = do
+    sensors <- getSensorIdStoredInTable promiser dbId dbTable
     traverse (\s -> mkRecord s <$> getTemperature promiser dbId s) sensors
 
-getRelativeHumidityButtonOnClickHandler :: StateHook -> Effect Unit
-getRelativeHumidityButtonOnClickHandler (state /\ setState) =
+getRelativeHumidityButtonOnClickHandler :: StateHook -> SqliteDatabaseState -> Effect Unit
+getRelativeHumidityButtonOnClickHandler (_state /\ setState) sqlite =
   Aff.runAff_ (either fail success)
     $ maybe (Aff.throwError $ Aff.error "database file not opened") (uncurry3 go) do
-        promiser <- state.promiser
-        dbId <- state.dbId
+        promiser <- sqlite.maybePromiser
+        dbId <- sqlite.maybeDbId
         pure $ tuple3 promiser dbId "relative_humidity"
   where
   fail :: Error -> Effect Unit
-  fail = error <<< Aff.message
+  fail err = Console.error $ Aff.message err
 
   success :: Array RelativeHumidityChartSeries -> Effect Unit
   success xs = setState _ { relativeHumiditySeries = xs }
@@ -253,21 +206,21 @@ getRelativeHumidityButtonOnClickHandler (state /\ setState) =
     in
       sensorId /\ map record rowRelativeHumidity
 
-  go :: SqliteWorker1Promiser -> DbId -> String -> Aff (Array RelativeHumidityChartSeries)
-  go promiser dbId table = do
-    sensors <- getSensorIdStoredInTable promiser dbId table
+  go :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array RelativeHumidityChartSeries)
+  go promiser dbId dbTable = do
+    sensors <- getSensorIdStoredInTable promiser dbId dbTable
     traverse (\s -> mkRecord s <$> getRelativeHumidity promiser dbId s) sensors
 
-getPressureButtonOnClickHandler :: StateHook -> Effect Unit
-getPressureButtonOnClickHandler (state /\ setState) =
+getPressureButtonOnClickHandler :: StateHook -> SqliteDatabaseState -> Effect Unit
+getPressureButtonOnClickHandler (_state /\ setState) sqlite =
   Aff.runAff_ (either fail success)
     $ maybe (Aff.throwError $ Aff.error "database file not opened") (uncurry3 go) do
-        promiser <- state.promiser
-        dbId <- state.dbId
+        promiser <- sqlite.maybePromiser
+        dbId <- sqlite.maybeDbId
         pure $ tuple3 promiser dbId "pressure"
   where
   fail :: Error -> Effect Unit
-  fail = error <<< Aff.message
+  fail err = Console.error $ Aff.message err
 
   success :: Array PressureChartSeries -> Effect Unit
   success xs = setState _ { pressureSeries = xs }
@@ -279,9 +232,9 @@ getPressureButtonOnClickHandler (state /\ setState) =
     in
       sensorId /\ map record rowPressure
 
-  go :: SqliteWorker1Promiser -> DbId -> String -> Aff (Array PressureChartSeries)
-  go promiser dbId table = do
-    sensors <- getSensorIdStoredInTable promiser dbId table
+  go :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array PressureChartSeries)
+  go promiser dbId dbTable = do
+    sensors <- getSensorIdStoredInTable promiser dbId dbTable
     traverse (\s -> mkRecord s <$> getPressure promiser dbId s) sensors
 
 type StateHook
@@ -299,63 +252,30 @@ type DbRowRelativeHumidity
 type DbRowPressure
   = { at :: Int, pascal :: Int }
 
--- データーベースを閉じる
-closeDatabaseHandler :: StateHook -> Effect Unit
-closeDatabaseHandler (state /\ setState) =
-  maybe mempty (uncurry close) do
-    promiser <- state.promiser
-    dbId <- state.dbId
-    pure (promiser /\ dbId)
-  where
-  close :: SqliteWorker1Promiser -> DbId -> Effect Unit
-  close promiser dbId = Aff.runAff_ (either fail $ const success) $ Sq3.close promiser dbId
-
-  fail :: Error -> Effect Unit
-  fail = error <<< Aff.message
-
-  success :: Effect Unit
-  success = do
-    logShow "database closed"
-    setState _ { dbId = Nothing }
-
--- OPFS上のデーターベースファイルを開く
-openFileHandler :: StateHook -> OpfsDatabaseFilePath -> Effect Unit
-openFileHandler (state /\ setState) filepath = maybe mempty go state.promiser
-  where
-  go promiser = Aff.runAff_ (either fail success) $ Sq3.open promiser filepath
-
-  fail :: Error -> Effect Unit
-  fail = error <<< Aff.message
-
-  success :: OpenResult -> Effect Unit
-  success result = do
-    logShow $ "database '" <> result.filename <> "' opened"
-    setState _ { dbId = Just result.dbId }
-
 -- テーブルに格納されているセンサーＩＤを取得する
-getSensorIdStoredInTable :: SqliteWorker1Promiser -> DbId -> String -> Aff (Array EnvSensorId)
+getSensorIdStoredInTable :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array EnvSensorId)
 getSensorIdStoredInTable promiser dbId targetTable = do
   result <- Sq3.exec promiser dbId $ "SELECT DISTINCT `sensor_id` FROM `" <> targetTable <> "` ORDER BY `sensor_id`;"
   let
     decoded = map decodeJson_ result.resultRows
   traverse (either fail success) decoded
   where
-  fail = Aff.throwError <<< Aff.error <<< printJsonDecodeError
+  fail = Aff.throwError <<< Aff.error
 
-  decodeJson_ :: Json -> Either JsonDecodeError { sensor_id :: EnvSensorId }
-  decodeJson_ = decodeJson
+  decodeJson_ :: Json -> Either String { sensor_id :: EnvSensorId }
+  decodeJson_ json = lmap (\e -> printJsonDecodeError e <> " " <> (unsafeCoerce json :: String)) $ decodeJson json
 
   success r = pure r.sensor_id
 
 -- 温度テーブルから温度を取得する
-getTemperature :: SqliteWorker1Promiser -> DbId -> EnvSensorId -> Aff (Array DbRowTemperature)
+getTemperature :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> EnvSensorId -> Aff (Array DbRowTemperature)
 getTemperature promiser dbId sensorId = do
   let
     query =
       "SELECT `at`,`milli_degc` FROM `temperature` WHERE `sensor_id`="
         <> BigInt.toString (unwrap sensorId)
         <> " ORDER BY `at` ASC LIMIT 10000;"
-  void $ log query
+  Console.log query
   result <- Sq3.exec promiser dbId query
   let
     decoded = map decodeJson_ result.resultRows
@@ -367,14 +287,14 @@ getTemperature promiser dbId sensorId = do
   decodeJson_ = decodeJson
 
 -- 湿度テーブルから温度を取得する
-getRelativeHumidity :: SqliteWorker1Promiser -> DbId -> EnvSensorId -> Aff (Array DbRowRelativeHumidity)
+getRelativeHumidity :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> EnvSensorId -> Aff (Array DbRowRelativeHumidity)
 getRelativeHumidity promiser dbId sensorId = do
   let
     query =
       "SELECT `at`,`ppm_rh` FROM `relative_humidity` WHERE `sensor_id`="
         <> BigInt.toString (unwrap sensorId)
         <> " ORDER BY `at` ASC LIMIT 10000;"
-  void $ log query
+  Console.log query
   result <- Sq3.exec promiser dbId query
   let
     decoded = map decodeJson_ result.resultRows
@@ -385,42 +305,21 @@ getRelativeHumidity promiser dbId sensorId = do
   decodeJson_ :: Json -> Either JsonDecodeError DbRowRelativeHumidity
   decodeJson_ = decodeJson
 
--- 気圧テーブルから温度を取得する
-getPressure :: SqliteWorker1Promiser -> DbId -> EnvSensorId -> Aff (Array DbRowPressure)
+-- 気圧テーブルから気圧を取得する
+getPressure :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> EnvSensorId -> Aff (Array DbRowPressure)
 getPressure promiser dbId sensorId = do
   let
     query =
       "SELECT `at`,`pascal` FROM `pressure` WHERE `sensor_id`="
         <> BigInt.toString (unwrap sensorId)
         <> " ORDER BY `at` ASC LIMIT 10000;"
-  void $ log query
+  Console.log query
   result <- Sq3.exec promiser dbId query
   let
     decoded = map decodeJson_ result.resultRows
   traverse (either fail pure) decoded
   where
-  fail = Aff.throwError <<< Aff.error <<< printJsonDecodeError
+  fail = Aff.throwError <<< Aff.error
 
-  decodeJson_ :: Json -> Either JsonDecodeError DbRowPressure
-  decodeJson_ = decodeJson
-
--- OPFS上のデーターベースファイルにローカルファイルを上書きする
-loadFileHandler :: Maybe FileList -> Effect Unit
-loadFileHandler Nothing = mempty
-
-loadFileHandler (Just filelist) = maybe (errorShow "FileList is empty") go $ FileList.item 0 filelist
-  where
-  go :: File -> Effect Unit
-  go file = Aff.runAff_ (either fail $ const success) $ overwriteOpfsFile file
-
-  overwriteOpfsFile :: File -> Aff Unit
-  overwriteOpfsFile file = do
-    ab <- readAsArrayBuffer (File.toBlob file)
-    Sq3.overwriteOpfsFileWithSpecifiedArrayBuffer opfsDatabaseFileToUse ab
-
-  fail :: Error -> Effect Unit
-  fail = error <<< Aff.message
-
-  success :: Effect Unit
-  success = do
-    log "OPFS file overwrited"
+  decodeJson_ :: Json -> Either String DbRowPressure
+  decodeJson_ json = lmap (\e -> printJsonDecodeError e <> " " <> (unsafeCoerce json :: String)) $ decodeJson json

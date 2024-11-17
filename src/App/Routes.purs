@@ -8,7 +8,6 @@ module App.Routes
   ) where
 
 import Prelude hiding ((/))
-
 import Data.Either (Either)
 import Data.Generic.Rep (class Generic)
 import Routing.Duplex (RouteDuplex', default, end, int, parse, print, root, segment)
@@ -26,8 +25,10 @@ data Page
   | Charts
 
 derive instance Generic Route _
+derive instance eqRoute:: Eq Route
 
 derive instance Generic Page _
+derive instance eqPage:: Eq Page
 
 type ProductId = Int
 

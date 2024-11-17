@@ -4,15 +4,16 @@ module App.Pages.Home
   ) where
 
 import Prelude
+import App.Config (Config)
 import React.Basic.DOM as DOM
 import React.Basic.Hooks (Component, component)
 
 type HomeProps
-  = Unit
+  = { config :: Config }
 
 mkHome :: Component HomeProps
 mkHome = do
-  component "Home" \_props -> do
+  component "Home" \(_props :: HomeProps) -> do
     pure
       $ DOM.div
           { children:

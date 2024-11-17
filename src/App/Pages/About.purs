@@ -4,15 +4,16 @@ module App.Pages.About
   ) where
 
 import Prelude
+import App.Config (Config)
 import React.Basic.DOM as DOM
 import React.Basic.Hooks (Component, component)
 
 type AboutProps
-  = Unit
+  = { config :: Config }
 
 mkAbout :: Component AboutProps
-mkAbout = do
-  component "About" \_props -> React.do
+mkAbout =
+  component "About" \(_props :: AboutProps) -> React.do
     pure
       $ DOM.div
           { children:
