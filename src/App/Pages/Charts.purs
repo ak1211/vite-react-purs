@@ -5,33 +5,31 @@ module App.Pages.Charts
 
 import Prelude
 import App.Config (Config)
-import App.DataAcquisition.Types (EnvSensorId, PressureChartSeries, RelativeHumidityChartSeries, TemperatureChartSeries)
 import App.PressureChart as PressureChart
 import App.RelativeHumidityChart as RelativeHumidityChart
-import App.Shadcn.Shadcn as Shadcn
 import App.SqliteDatabaseState (SqliteDatabaseState)
 import App.TemperatureChart as TemperatureChart
-import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (JsonDecodeError, decodeJson, printJsonDecodeError)
-import Data.Bifunctor (lmap)
-import Data.Either (Either, either)
-import Data.Int (toNumber)
-import Data.Maybe (maybe)
-import Data.Newtype (unwrap)
+import Data.Either (either)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Traversable (traverse, traverse_)
 import Data.Tuple.Nested (type (/\), tuple3, uncurry3, (/\))
+import DataAcquisition.DataAcquisition (OrderBy(..))
+import DataAcquisition.EnvSensorId (EnvSensorId)
+import DataAcquisition.Table.Pressure (Pressure, getPressure)
+import DataAcquisition.Table.RelativeHumidity (RelativeHumidity, getRelativeHumidity)
+import DataAcquisition.Table.Table (getSensorIdStoredInTable)
+import DataAcquisition.Table.Temperature (Temperature, getTemperature)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Aff as Aff
 import Effect.Class.Console as Console
 import Effect.Exception (Error)
-import JS.BigInt as BigInt
 import React.Basic.DOM as DOM
 import React.Basic.DOM.Events (capture_)
 import React.Basic.Hooks (Component, component, useState)
 import React.Basic.Hooks as React
+import Shadcn.Components as Shadcn
 import Sqlite3Wasm.Sqlite3Wasm as Sq3
-import Unsafe.Coerce (unsafeCoerce)
 
 type ChartsProps
   = { config :: Config
@@ -40,9 +38,9 @@ type ChartsProps
 
 type State
   = { counter :: Int
-    , temperatureSeries :: Array TemperatureChartSeries
-    , relativeHumiditySeries :: Array RelativeHumidityChartSeries
-    , pressureSeries :: Array PressureChartSeries
+    , temperatureSeries :: Array (EnvSensorId /\ Array Temperature)
+    , relativeHumiditySeries :: Array (EnvSensorId /\ Array RelativeHumidity)
+    , pressureSeries :: Array (EnvSensorId /\ Array Pressure)
     }
 
 initialState :: State
@@ -76,13 +74,6 @@ mkCharts = do
                   }
                   [ DOM.text "Clicks: "
                   , DOM.text (show state.counter)
-                  ]
-              , Shadcn.button
-                  { onClick: capture_ versionButtonOnClickHandler
-                  , className: "m-1"
-                  , variant: "secondary"
-                  }
-                  [ DOM.text "SQLite version"
                   ]
               , Shadcn.button
                   { onClick:
@@ -132,18 +123,6 @@ mkCharts = do
               ]
           }
 
-versionButtonOnClickHandler :: Effect Unit
-versionButtonOnClickHandler = Aff.runAff_ (either fail success) $ configGet
-  where
-  configGet :: Aff Sq3.ConfigGetResult
-  configGet = Sq3.configGet =<< Sq3.createWorker1Promiser
-
-  fail :: Error -> Effect Unit
-  fail err = Console.error $ "config-get failed: " <> Aff.message err
-
-  success :: Sq3.ConfigGetResult -> Effect Unit
-  success r = Console.logShow r
-
 sensorIdButtonOnClickHandler :: String -> SqliteDatabaseState -> Effect Unit
 sensorIdButtonOnClickHandler dbTable sqlite =
   Aff.runAff_ (either fail success)
@@ -170,20 +149,13 @@ getTemperatureButtonOnClickHandler (_state /\ setState) sqlite =
   fail err = Console.error $ Aff.message err
 
   -- 取得したデーターでstate変数を上書きする
-  success :: Array TemperatureChartSeries -> Effect Unit
+  success :: Array (EnvSensorId /\ Array Temperature) -> Effect Unit
   success xs = setState _ { temperatureSeries = xs }
 
-  mkRecord :: EnvSensorId -> Array DbRowTemperature -> TemperatureChartSeries
-  mkRecord sensorId rowTemperature =
-    let
-      record x = { at: x.at, degc: (toNumber x.milli_degc) / 1000.0 }
-    in
-      sensorId /\ map record rowTemperature
-
-  go :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array TemperatureChartSeries)
+  go :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array (EnvSensorId /\ Array Temperature))
   go promiser dbId dbTable = do
-    sensors <- getSensorIdStoredInTable promiser dbId dbTable
-    traverse (\s -> mkRecord s <$> getTemperature promiser dbId s) sensors
+    sensorIds <- getSensorIdStoredInTable promiser dbId dbTable
+    traverse (\targetId -> getTemperature promiser dbId targetId ASC $ Just 10000) sensorIds
 
 getRelativeHumidityButtonOnClickHandler :: StateHook -> SqliteDatabaseState -> Effect Unit
 getRelativeHumidityButtonOnClickHandler (_state /\ setState) sqlite =
@@ -196,20 +168,14 @@ getRelativeHumidityButtonOnClickHandler (_state /\ setState) sqlite =
   fail :: Error -> Effect Unit
   fail err = Console.error $ Aff.message err
 
-  success :: Array RelativeHumidityChartSeries -> Effect Unit
+  -- 取得したデーターでstate変数を上書きする
+  success :: Array (EnvSensorId /\ Array RelativeHumidity) -> Effect Unit
   success xs = setState _ { relativeHumiditySeries = xs }
 
-  mkRecord :: EnvSensorId -> Array DbRowRelativeHumidity -> RelativeHumidityChartSeries
-  mkRecord sensorId rowRelativeHumidity =
-    let
-      record x = { at: x.at, percent: (toNumber x.ppm_rh) / 10000.0 }
-    in
-      sensorId /\ map record rowRelativeHumidity
-
-  go :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array RelativeHumidityChartSeries)
+  go :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array (EnvSensorId /\ Array RelativeHumidity))
   go promiser dbId dbTable = do
-    sensors <- getSensorIdStoredInTable promiser dbId dbTable
-    traverse (\s -> mkRecord s <$> getRelativeHumidity promiser dbId s) sensors
+    sensorIds <- getSensorIdStoredInTable promiser dbId dbTable
+    traverse (\targetId -> getRelativeHumidity promiser dbId targetId ASC $ Just 10000) sensorIds
 
 getPressureButtonOnClickHandler :: StateHook -> SqliteDatabaseState -> Effect Unit
 getPressureButtonOnClickHandler (_state /\ setState) sqlite =
@@ -222,20 +188,13 @@ getPressureButtonOnClickHandler (_state /\ setState) sqlite =
   fail :: Error -> Effect Unit
   fail err = Console.error $ Aff.message err
 
-  success :: Array PressureChartSeries -> Effect Unit
+  success :: Array (EnvSensorId /\ Array Pressure) -> Effect Unit
   success xs = setState _ { pressureSeries = xs }
 
-  mkRecord :: EnvSensorId -> Array DbRowPressure -> PressureChartSeries
-  mkRecord sensorId rowPressure =
-    let
-      record x = { at: x.at, hpa: (toNumber x.pascal) / 100.0 }
-    in
-      sensorId /\ map record rowPressure
-
-  go :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array PressureChartSeries)
+  go :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array (EnvSensorId /\ Array Pressure))
   go promiser dbId dbTable = do
-    sensors <- getSensorIdStoredInTable promiser dbId dbTable
-    traverse (\s -> mkRecord s <$> getPressure promiser dbId s) sensors
+    sensorIds <- getSensorIdStoredInTable promiser dbId dbTable
+    traverse (\targetId -> getPressure promiser dbId targetId ASC $ Just 10000) sensorIds
 
 type StateHook
   = (State /\ ((State -> State) -> Effect Unit))
@@ -243,15 +202,7 @@ type StateHook
 {-}
  データーベースにクエリを発行する
  -}
-type DbRowTemperature
-  = { at :: Int, milli_degc :: Int }
-
-type DbRowRelativeHumidity
-  = { at :: Int, ppm_rh :: Int }
-
-type DbRowPressure
-  = { at :: Int, pascal :: Int }
-
+{-}
 -- テーブルに格納されているセンサーＩＤを取得する
 getSensorIdStoredInTable :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> String -> Aff (Array EnvSensorId)
 getSensorIdStoredInTable promiser dbId targetTable = do
@@ -266,7 +217,6 @@ getSensorIdStoredInTable promiser dbId targetTable = do
   decodeJson_ json = lmap (\e -> printJsonDecodeError e <> " " <> (unsafeCoerce json :: String)) $ decodeJson json
 
   success r = pure r.sensor_id
-
 -- 温度テーブルから温度を取得する
 getTemperature :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> EnvSensorId -> Aff (Array DbRowTemperature)
 getTemperature promiser dbId sensorId = do
@@ -285,7 +235,6 @@ getTemperature promiser dbId sensorId = do
 
   decodeJson_ :: Json -> Either JsonDecodeError DbRowTemperature
   decodeJson_ = decodeJson
-
 -- 湿度テーブルから温度を取得する
 getRelativeHumidity :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> EnvSensorId -> Aff (Array DbRowRelativeHumidity)
 getRelativeHumidity promiser dbId sensorId = do
@@ -304,7 +253,6 @@ getRelativeHumidity promiser dbId sensorId = do
 
   decodeJson_ :: Json -> Either JsonDecodeError DbRowRelativeHumidity
   decodeJson_ = decodeJson
-
 -- 気圧テーブルから気圧を取得する
 getPressure :: Sq3.SqliteWorker1Promiser -> Sq3.DbId -> EnvSensorId -> Aff (Array DbRowPressure)
 getPressure promiser dbId sensorId = do
@@ -323,3 +271,5 @@ getPressure promiser dbId sensorId = do
 
   decodeJson_ :: Json -> Either String DbRowPressure
   decodeJson_ json = lmap (\e -> printJsonDecodeError e <> " " <> (unsafeCoerce json :: String)) $ decodeJson json
+
+  -}

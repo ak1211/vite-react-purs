@@ -1,5 +1,5 @@
-module App.Shadcn.Button
-  ( ButtonProps
+module Shadcn.Button
+  ( Props_shadcnButton
   , button
   ) where
 
@@ -11,7 +11,7 @@ import React.Basic.Hooks as React
 import Record as Record
 import Unsafe.Coerce (unsafeCoerce)
 
-type ButtonProps
+type Props_shadcnButton
   = ( variant :: String
     , size :: String
     , asChild :: Boolean
@@ -20,7 +20,7 @@ type ButtonProps
 
 foreign import buttonImpl :: forall a. ReactComponent { | a }
 
-button :: forall attrs attrs_. Union attrs attrs_ ButtonProps => Record attrs -> Array JSX -> JSX
+button :: forall attrs attrs_. Union attrs attrs_ Props_shadcnButton => Record attrs -> Array JSX -> JSX
 button props children =
   React.element buttonImpl
-    $ Record.merge { children } (unsafeCoerce props :: Record ButtonProps)
+    $ Record.merge { children } (unsafeCoerce props :: Record Props_shadcnButton)

@@ -33,17 +33,20 @@ mkApp = do
       router <- AppRouter.useRouter
       pure
         $ strictMode
-        $ React.fragment
-            [ header { config: config, sqliteDatabaseStateHook: sqliteDatabaseStateHook }
-            , DOM.main
-                { className: "container mx-auto py-1"
-                , children:
-                    [ case router.route of
-                        Page page -> case page of
-                          Home -> home { config: config }
-                          About -> about { config: config }
-                          Charts -> charts { config: config, sqliteDatabaseState: sqliteDatabaseState }
-                        NotFound -> DOM.div { className: "m-6 flex justify-center text-2xl", children: [ DOM.text "404 Not found" ] }
-                    ]
-                }
-            ]
+        $ DOM.div
+            { className: "flex flex-col h-screen"
+            , children:
+                [ header { config: config, sqliteDatabaseStateHook: sqliteDatabaseStateHook }
+                , DOM.main
+                    { className: "h-appMainContents bg-sky-200 flex-grow overflow-scroll"
+                    , children:
+                        [ case router.route of
+                            Page page -> case page of
+                              Home -> home { config: config, sqliteDatabaseState: sqliteDatabaseState }
+                              About -> about { config: config }
+                              Charts -> charts { config: config, sqliteDatabaseState: sqliteDatabaseState }
+                            NotFound -> DOM.div { className: "mx-auto items-center justify-center text-4xl", children: [ DOM.text "404 Not found" ] }
+                        ]
+                    }
+                ]
+            }

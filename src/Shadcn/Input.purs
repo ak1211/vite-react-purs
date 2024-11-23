@@ -1,4 +1,4 @@
-module App.Shadcn.Input
+module Shadcn.Input
   ( input
   ) where
 

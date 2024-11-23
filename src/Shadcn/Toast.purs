@@ -1,4 +1,4 @@
-module App.Shadcn.Toast
+module Shadcn.Toast
   ( Toast
   , ToastOption
   , toaster

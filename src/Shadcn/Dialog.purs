@@ -1,4 +1,4 @@
-module App.Shadcn.Dialog
+module Shadcn.Dialog
   ( DialogProps
   , OnOpenChangeHandler
   , dialog

@@ -18,18 +18,19 @@ import Apexcharts.Title as TI
 import Apexcharts.Tooltip as TT
 import Apexcharts.Tooltip.X as TTX
 import Apexcharts.Xaxis as X
-import App.DataAcquisition.Types (PressureChartSeries, printEnvSensorId)
-import Data.Int (toNumber)
 import Data.Maybe (Maybe(..), maybe)
+import Data.Newtype (unwrap)
 import Data.Options (Options, (:=))
-import Data.Traversable (traverse)
+import Data.Tuple.Nested (type (/\))
+import DataAcquisition.EnvSensorId (EnvSensorId, printEnvSensorId)
+import DataAcquisition.Table.Pressure (Pressure)
 import Effect (Effect)
 import React.Basic.DOM as DOM
 import React.Basic.Hooks (Component, component, useEffect, useLayoutEffect, useState, (/\))
 import React.Basic.Hooks as React
 
 type Props
-  = Array PressureChartSeries
+  = Array (EnvSensorId /\ Array Pressure)
 
 type State
   = { apexchart :: Maybe Apexchart
@@ -47,7 +48,8 @@ mkComponent = do
     (state /\ setState) <- useState initialState
     -- 副作用フック(useEffect)
     useEffect unit do
-      option <- chartOption props
+      let
+        option = chartOption props
       chart <- createChart "#pressure-chart" option
       render chart
       setState (\_ -> { apexchart: Just chart })
@@ -59,39 +61,41 @@ mkComponent = do
     pure $ DOM.div { id: "pressure-chart" }
   where
   update :: Props -> Apexchart -> Effect Unit
-  update props chart = do
-    option <- chartOption props
-    updateOptions option chart
+  update props chart = updateOptions (chartOption props) chart
 
-  dataset :: PressureChartSeries -> Effect { sensorName :: String, timelines :: Array { at :: Number, hpa :: Number } }
-  dataset (sensor_id /\ values) = do
-    name <- printEnvSensorId sensor_id
+  dataset :: EnvSensorId /\ Array Pressure -> { sensorName :: String, timelines :: Array { at :: Number, hpa :: Number } }
+  dataset (sensor_id /\ values) =
     let
-      timelines = map (\v -> { at: toNumber v.at * 1000.0, hpa: v.hpa }) values
-    pure { sensorName: name, timelines: timelines }
+      name = printEnvSensorId sensor_id
 
-  chartOption :: Props -> Effect (Options Apexoptions)
-  chartOption props = do
-    datasets <- traverse dataset props
-    pure $ C.chart := (C.type' := CC.Line <> C.height := 300.0 <> Z.zoom := (Z.enabled := true))
-      <> SE.series
-      := map
-          ( \ds ->
-              SE.name := ds.sensorName
-                <> SE.data'
-                := map (\val -> [ val.at, val.hpa ]) ds.timelines
-          )
-          datasets
-      <> S.stroke
-      := (S.curve := Straight)
-      <> L.legend
-      := (L.showForSingleSeries := true)
-      <> DL.dataLabels
-      := (DL.enabled := false)
-      <> TI.title
-      := (TI.text := "M5Unit-ENV2で測定した気圧 (hPa)" <> TI.align := Left)
-      <> X.xaxis
-      := (X.type' := X.Datetime)
-      <> TT.tooltip
-      := TTX.x
-      := (TTX.format := "yyyy-MM-dd hh:mm:ss")
+      timelines = map (\v -> { at: unwrap (v.at), hpa: v.hpa }) values
+    in
+      { sensorName: name, timelines: timelines }
+
+  chartOption :: Props -> Options Apexoptions
+  chartOption props =
+    let
+      datasets = map dataset props
+    in
+      C.chart := (C.type' := CC.Line <> C.height := 300.0 <> Z.zoom := (Z.enabled := true))
+        <> SE.series
+        := map
+            ( \ds ->
+                SE.name := ds.sensorName
+                  <> SE.data'
+                  := map (\val -> [ val.at, val.hpa ]) ds.timelines
+            )
+            datasets
+        <> S.stroke
+        := (S.curve := Straight)
+        <> L.legend
+        := (L.showForSingleSeries := true)
+        <> DL.dataLabels
+        := (DL.enabled := false)
+        <> TI.title
+        := (TI.text := "M5Unit-ENV2で測定した気圧 (hPa)" <> TI.align := Left)
+        <> X.xaxis
+        := (X.type' := X.Datetime)
+        <> TT.tooltip
+        := TTX.x
+        := (TTX.format := "yyyy-MM-dd hh:mm:ss")

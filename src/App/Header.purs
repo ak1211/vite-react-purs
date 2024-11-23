@@ -4,7 +4,6 @@ import Prelude
 import App.Config (Config)
 import App.Router (Router, routerContext)
 import App.Routes (Page(..), Route(..))
-import App.Shadcn.Shadcn as Shadcn
 import App.SqliteDatabaseState (SqliteDatabaseStateHook, closeSqliteDatabase, openSqliteDatabase)
 import Data.Either (either)
 import Data.Maybe (Maybe(..), maybe)
@@ -20,6 +19,7 @@ import React.Basic.DOM.Events (targetFiles)
 import React.Basic.Events (handler, handler_)
 import React.Basic.Hooks (type (/\), (/\), Component, JSX, component, useContext, useState)
 import React.Basic.Hooks as React
+import Shadcn.Components as Shadcn
 import Sqlite3Wasm.Sqlite3Wasm as Sq3
 import Web.File.File (File)
 import Web.File.File as File
@@ -51,16 +51,16 @@ mkHeader = do
     (toast :: Shadcn.Toast) <- React.unsafeRenderEffect Shadcn.useToast
     router <- useContext routerContext
     pure
-      $ DOM.div
-          { className: "flex justify-between px-5 bg-slate-50 py-4 border-b border-slate-900/10"
+      $ DOM.header
+          { className: "sticky top-0 h-appHeader py-2 flex flex-column justify-between px-5 py-1 border-b border-slate-900/20"
           , children:
               [ Shadcn.navigationMenu
                   { className: "" }
                   [ Shadcn.navigationMenuList_
                       [ DOM.div
-                          { className: "mr-5 font-noto font-bold text-lg text-sky-600/90"
+                          { className: "mr-5 font-serif font-extrabold text-lg text-slate-900"
                           , children:
-                              [ DOM.text "環境データグラフ" ]
+                              [ DOM.text "計測データ分析" ]
                           }
                       , navItem router Home "HOME"
                       , navItem router About "ABOUT"
@@ -68,10 +68,10 @@ mkHeader = do
                       ]
                   ]
               , DOM.div
-                  { className: "p-2 border-l-2 border-sky-700"
+                  { className: "border-l border-slate-900"
                   , children:
                       [ DOM.div
-                          { className: "flex items-center space-x-2"
+                          { className: "m-1 flex items-center space-x-2"
                           , children:
                               [ uploadDatabaseFileDialog toast stateHook props.config.sqliteDatabaseFile ]
                                 <> switchItem props.sqliteDatabaseStateHook props.config.sqliteDatabaseFile
@@ -84,14 +84,16 @@ mkHeader = do
 navItem :: Router -> Page -> String -> JSX
 navItem router page text =
   Shadcn.navigationMenuItem
-    { className: if router.route == Page page then "border-b border-sky-900/30" else "" }
+    {}
     [ Shadcn.button
         { onClick: handler_ $ router.navigate page
-        , className:
-            if router.route == Page page then "font-extrabold" else ""
-        , variant: "ghost"
+        , variant: "link"
         }
-        [ DOM.text text ]
+        [ DOM.span
+            { className: "mx-2" <> if router.route == Page page then " font-bold border-b-2 border-slate-900" else ""
+            , children: [ DOM.text text ]
+            }
+        ]
     ]
 
 switchItem :: SqliteDatabaseStateHook -> Sq3.OpfsDatabaseFilePath -> Array JSX
@@ -124,7 +126,7 @@ uploadDatabaseFileDialog toast stateHook@(state /\ setState) sqliteDatabaseFile 
             { className: "mx-2"
             , variant: ""
             }
-            [ DOM.text "Upload DB" ]
+            [ DOM.text "Upload Data" ]
         ]
     , Shadcn.dialogContent_
         [ Shadcn.dialogHeader_
@@ -134,7 +136,7 @@ uploadDatabaseFileDialog toast stateHook@(state /\ setState) sqliteDatabaseFile 
         , DOM.div
             { className: ""
             , children:
-                [ Shadcn.label { htmlFor: "databaseFile" } [ DOM.text "環境データを蓄積したファイルを選択してください。" ]
+                [ Shadcn.label { htmlFor: "databaseFile" } [ DOM.text "環境データを蓄積したSQLite3データーベースファイルを選択してください。" ]
                 , Shadcn.input
                     { id: "databaseFile"
                     , type: "file"
@@ -179,11 +181,11 @@ loadFileHandler toast (_ /\ setState) opfsDatabaseFileToUse (Just filelist) =
 
   success :: Effect Unit
   success = do
-    -- ダイアログを閉じる
-    setState _ { dialogOpened = false }
     --
     Shadcn.toast toast
       { variant: ""
       , title: "アップロード成功"
       , description: "データーベースファイルをOrigin Private File Systemに書き込みました。"
       }
+    -- ダイアログを閉じる
+    setState _ { dialogOpened = false }

@@ -1,4 +1,4 @@
-module App.Shadcn.Switch
+module Shadcn.Switch
   ( OnCheckedChangeHandler
   , SwitchProps
   , switch

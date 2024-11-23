@@ -1,4 +1,4 @@
-module App.Shadcn.NavigationMenu
+module Shadcn.NavigationMenu
   ( navigationMenu
   , navigationMenuContent_
   , navigationMenuIndicator_

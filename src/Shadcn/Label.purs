@@ -1,4 +1,4 @@
-module App.Shadcn.Label (label) where
+module Shadcn.Label (label) where
 
 import Prelude
 import Prim.Row (class Union)

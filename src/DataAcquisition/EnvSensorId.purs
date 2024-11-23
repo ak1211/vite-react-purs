@@ -1,9 +1,5 @@
-module App.DataAcquisition.Types
-  ( ChartSeries
-  , EnvSensorId(..)
-  , PressureChartSeries
-  , RelativeHumidityChartSeries
-  , TemperatureChartSeries
+module DataAcquisition.EnvSensorId
+  ( EnvSensorId(..)
   , printEnvSensorId
   ) where
 
@@ -14,9 +10,8 @@ import Data.Either as Either
 import Data.Generic.Rep (class Generic)
 import Data.Newtype (class Newtype)
 import Data.Show.Generic (genericShow)
-import Data.Tuple (Tuple)
-import Effect (Effect)
 import Effect.Uncurried (EffectFn1, runEffectFn1)
+import Effect.Unsafe (unsafePerformEffect)
 import JS.BigInt (BigInt)
 import JS.BigInt as BigInt
 import Unsafe.Coerce (unsafeCoerce)
@@ -38,8 +33,8 @@ instance showEnvSensorId :: Show EnvSensorId where
 foreign import printEnvSensorIdImpl :: EffectFn1 BigInt String
 
 -- センサーＩＤを文字列に変換する
-printEnvSensorId :: EnvSensorId -> Effect String
-printEnvSensorId (EnvSensorId bigint) = runEffectFn1 printEnvSensorIdImpl bigint
+printEnvSensorId :: EnvSensorId -> String
+printEnvSensorId (EnvSensorId bigint) = unsafePerformEffect (runEffectFn1 printEnvSensorIdImpl bigint)
 
 -- BigIntはDecodeJsonのインスタンスでなかったので、BigIntを文字列で解釈してからBigIntに変換した。
 -- unsafeCoerceを使っているからなんか問題があるかも
@@ -47,15 +42,3 @@ instance decodeJsonEnvSensorId :: DecodeJson EnvSensorId where
   decodeJson json = Either.note (UnexpectedValue json) maybeSensorId
     where
     maybeSensorId = EnvSensorId <$> (BigInt.fromString $ unsafeCoerce json)
-
-type ChartSeries a
-  = Tuple EnvSensorId (Array a)
-
-type TemperatureChartSeries
-  = ChartSeries { at :: Int, degc :: Number }
-
-type RelativeHumidityChartSeries
-  = ChartSeries { at :: Int, percent :: Number }
-
-type PressureChartSeries
-  = ChartSeries { at :: Int, hpa :: Number }
