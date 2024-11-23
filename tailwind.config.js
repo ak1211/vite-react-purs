@@ -10,6 +10,8 @@ export default {
 		extend: {
 			height: {
 				appHeader: 'var(--app-header-height)',
+			},
+			minHeight: {
 				appMainContents: 'calc(100vh - var(--app-header-height))'
 			},
 			borderRadius: {

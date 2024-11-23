@@ -18,27 +18,32 @@ import Apexcharts.Title as TI
 import Apexcharts.Tooltip as TT
 import Apexcharts.Tooltip.X as TTX
 import Apexcharts.Xaxis as X
+import Data.Int (toStringAs, decimal)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (unwrap)
 import Data.Options (Options, (:=))
-import Data.Tuple.Nested (type (/\))
+import Data.Tuple.Nested (type (/\), (/\))
+import Data.Unique as Unique
 import DataAcquisition.EnvSensorId (EnvSensorId, printEnvSensorId)
 import DataAcquisition.Table.Pressure (Pressure)
 import Effect (Effect)
 import React.Basic.DOM as DOM
-import React.Basic.Hooks (Component, component, useEffect, useLayoutEffect, useState, (/\))
+import React.Basic.Hooks (Component, component, useEffect, useLayoutEffect, useState)
 import React.Basic.Hooks as React
+import Shadcn.Components as Shadcn
 
 type Props
   = Array (EnvSensorId /\ Array Pressure)
 
 type State
-  = { apexchart :: Maybe Apexchart
+  = { chartId :: Maybe String
+    , apexchart :: Maybe Apexchart
     }
 
 initialState :: State
 initialState =
-  { apexchart: Nothing
+  { chartId: Nothing
+  , apexchart: Nothing
   }
 
 mkComponent :: Component Props
@@ -48,18 +53,31 @@ mkComponent = do
     (state /\ setState) <- useState initialState
     -- 副作用フック(useEffect)
     useEffect unit do
+      hash <- Unique.hashUnique <$> Unique.newUnique
       let
-        option = chartOption props
-      chart <- createChart "#pressure-chart" option
-      render chart
-      setState (\_ -> { apexchart: Just chart })
+        uniqueId = "chart-" <> toStringAs decimal hash
+      setState _ { chartId = Just uniqueId }
       pure mempty
+    useEffect state.chartId do
+      maybe mempty (create props setState) state.chartId
+      pure mempty
+    -- アップデートは同期的にして欲しいのでuseLayoutEffectにした。
     useLayoutEffect props do
       maybe mempty (update props) state.apexchart
       pure mempty
     --
-    pure $ DOM.div { id: "pressure-chart" }
+    pure
+      $ Shadcn.card { className: "m-1 p-3 h-fit drop-shadow-md" }
+      $ maybe [] (\chartId -> [ DOM.div { id: chartId } ]) state.chartId
   where
+  create :: Props -> ((State -> State) -> Effect Unit) -> String -> Effect Unit
+  create props setState chartId = do
+    let
+      option = chartOption props
+    chart <- createChart ("#" <> chartId) option
+    render chart
+    setState _ { apexchart = Just chart }
+
   update :: Props -> Apexchart -> Effect Unit
   update props chart = updateOptions (chartOption props) chart
 

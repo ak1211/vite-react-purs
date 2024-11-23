@@ -16,7 +16,7 @@ mkAbout =
   component "About" \(_props :: AboutProps) -> React.do
     pure
       $ DOM.div
-          { className: "container mx-auto p-5 h-appMainContents bg-sky-50"
+          { className: "container mx-auto p-5 min-h-appMainContents bg-sky-50"
           , children:
               [ DOM.h1_ [ DOM.text "About" ]
               , DOM.p_ [ DOM.text "ABOUTページになるはずのページ" ]
