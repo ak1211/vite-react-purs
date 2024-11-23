@@ -10,7 +10,7 @@ module App.Routes
 import Prelude hiding ((/))
 import Data.Either (Either)
 import Data.Generic.Rep (class Generic)
-import Routing.Duplex (RouteDuplex', default, end, int, parse, print, prefix, root, segment)
+import Routing.Duplex (RouteDuplex', default, end, int, parse, prefix, print, root, segment)
 import Routing.Duplex.Generic (noArgs, sum)
 import Routing.Duplex.Generic.Syntax ((/))
 import Routing.Duplex.Parser (RouteError)
@@ -45,14 +45,14 @@ routes =
 
 pages :: RouteDuplex' Page
 pages =
-  root $ end $ sum
-    { "Home": noArgs
+  root $ prefix "vite-react-purs" $ end $ sum
+    { "Home": "" / noArgs
     , "About": "about" / noArgs
     , "Charts": "charts" / noArgs
     }
 
 parseRoute :: String -> Either RouteError Route
-parseRoute = parse (prefix "/vite-react-purs" routes)
+parseRoute = parse routes
 
 printRoute :: Page -> String
-printRoute = print (prefix "/vite-react-purs" pages)
+printRoute = print pages
