@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc && spago build && vite build && cp -r dist docs",
     "lint": "eslint .",
     "preview": "vite preview"
   },
