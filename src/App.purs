@@ -45,7 +45,11 @@ mkApp = do
                               Home -> home { config: config, sqliteDatabaseState: sqliteDatabaseState }
                               About -> about { config: config }
                               Charts -> charts { config: config, sqliteDatabaseState: sqliteDatabaseState }
-                            NotFound -> DOM.div { className: "mx-auto items-center justify-center text-4xl", children: [ DOM.text "404 Not found" ] }
+                            NotFound ->
+                              DOM.div
+                                { className: "w-full h-full flex justify-center items-center text-4xl"
+                                , children: [ DOM.text "404 Not found" ]
+                                }
                         ]
                     }
                 ]
