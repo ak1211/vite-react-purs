@@ -10,7 +10,7 @@ module App.Routes
 import Prelude hiding ((/))
 import Data.Either (Either)
 import Data.Generic.Rep (class Generic)
-import Routing.Duplex (RouteDuplex', default, end, int, parse, prefix, print, root, segment, path)
+import Routing.Duplex (RouteDuplex', default, end, int, parse, prefix, print, root, segment)
 import Routing.Duplex.Generic (noArgs, sum)
 import Routing.Duplex.Generic.Syntax ((/))
 import Routing.Duplex.Parser (RouteError)
